@@ -52,7 +52,12 @@ export class Reacteroids extends Component {
     this.asteroids = [];
     this.bullets = [];
     this.particles = [];
-    this.agent = new PolicyGradientAgent({});
+    this.agent = new PolicyGradientAgent({
+      actionSize:3, 
+      inputSize:19, 
+      hiddenSize:36, 
+      gamma:0.99
+    });
     this.deathPenalty = 1000;
   }
 

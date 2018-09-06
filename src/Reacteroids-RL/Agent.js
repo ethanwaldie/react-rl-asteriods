@@ -46,10 +46,6 @@ export class RandomAgent {
     
     // this function back-props the policy.
     update() {
-        console.log(this.actionHistory);
-        console.log(this.stateHistory);
-        console.log(this.rewardHistory);
-
         this.actionHistory = [];
         this.stateHistory = [];
         this.rewardHistory = [];
@@ -60,44 +56,46 @@ export class RandomAgent {
 export default class PolicyGradientAgent {
     // This inits the agent and declares the policy network.
     constructor(args) {
-        this.actionSize = 3;
-        this.inputSize = 19;
-        this.hiddenSize = 36;
-        this.gamma = 0.9;
-        this.learning_rate = 0.1;
+        const {actionSize, inputSize, hiddenSize, gamma} = args;
+
+        this.actionSize = actionSize;
+        this.inputSize = inputSize;
+        this.hiddenSize = hiddenSize;
+        this.gamma = gamma;
 
         this.actionHistory = [];
         this.stateHistory = [];
         this.rewardHistory = [];
 
+        this.model = {
+            stateTensor: tf.Variable({shape: [inputSize, 1], name:'state', trainable: false}),
+            actionTensor: tf.Variable({shape: [actionSize, 1], name:'action', trainable: false}),
+            rewardTensor: tf.Variable({shape: [1], name:'reward', trainable: false}),
+            output: tf.Tensor,
+            loss: this.lossFunction,
+            optimizer: tf.train.adam({learningRate:0.1})
+        };
     }
+
 
     init () {
-        // Define input, which has a size of 5 (not including batch dimension).
-        const input = tf.input({shape: [this.inputSize], name:'state'});
-
         // First dense layer uses relu activation.
         const denseLayer1 = tf.layers.dense({units: this.hiddenSize, activation: 'relu'});
-        // Second dense layer uses softmax activation.
+        // Second dense layer uses sigmoid activation.
         const outputLayer = tf.layers.dense({units: this.actionSize, activation: 'sigmoid'});
-
         // Obtain the output symbolic tensor by applying the layers on the input.
-        const output = outputLayer.apply(denseLayer1.apply(input));
-
-        // Create the model based on the inputs.
-        this.model = tf.model({inputs: input, outputs: output});
-
-        this.model.compile({loss: this.lossFunction, optimizer: 'adam'});
-        console.log(this.model.summary())
+        this.model.output = outputLayer.apply(denseLayer1.apply(this.model.stateTensor));
     }
 
-    lossFunction (target, output) {
-        return tf.mean(tf.neg(tf.log(output)).mul(target[0]))
+    lossFunction(actionTensor, rewardTensor) {
+        // compute discounted returns:
+        const logProbability = tf.log(actionTensor);
+        // Negative Log probablity.
+        return tf.mul(-1, tf.mul(logProbability, rewardTensor));
     }
 
     // This runs the model and evaluates the model policy. 
     evaluatePolicy(stateVec) {
-
         let policy = this.model.predict(tf.tensor([stateVec])).dataSync();
 
         const action = this.getAction(policy);
@@ -126,22 +124,20 @@ export default class PolicyGradientAgent {
         const lastReward = this.rewardHistory[-1];
         const discountedReward = lastReward*this.gamma + reward
 
-        this.rewardHistory.push([discountedReward,discountedReward,discountedReward]);
+        this.rewardHistory.push(discountedReward);
     }
     
     // this function back-props the policy.
     update() {
-        let states = tf.tensor(this.stateHistory);
-        let rewards = tf.tensor(this.rewardHistory);
+        for (let step = 0; step < this.actionHistory.length; step++) {
+            
+            this.model.actionTensor.assign(this.actionHistory[step]);
+            this.model.stateTensor.assign(this.stateHistory[step]);
+            this.model.rewardTensor.assign(this.rewardHistory[step]);
 
-        const history = this.model.fit(states, 
-            rewards,
-        {
-            batchSize: this.stateHistory.length,
-            epochs: 1
-        });
-
-        console.log("Loss after Epoch "  + history);
+            this.model.optimizer.minimize(() => this.lossFunction(this.model.actionTensor, this.model.rewardTensor));
+            console.log("Loss for episode i "  + this.lossFunction(this.model.actionTensor, this.model.rewardTensor));
+        }
         
         this.actionHistory = [];
         this.stateHistory = [];
