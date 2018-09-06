@@ -1,7 +1,8 @@
 import React from 'react';
-import { render } from 'react-dom';
+import ReactDOM from 'react-dom';
+import './index.css';
 import { Reacteroids } from './Reacteroids-RL/Reacteroids';
-import style from './style.css';
-import Auralux from './Auralux';
+import registerServiceWorker from './registerServiceWorker';
 
-render(<Reacteroids />, document.getElementById('root'));
+ReactDOM.render(<Reacteroids />, document.getElementById('root'));
+registerServiceWorker();
